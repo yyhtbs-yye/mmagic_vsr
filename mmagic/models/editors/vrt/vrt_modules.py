@@ -9,6 +9,7 @@ from distutils.version import LooseVersion
 from torch.nn.modules.utils import _pair, _single
 from .vrt_utils import (drop_path, flow_warp)
 
+
 class ModulatedDeformConv(nn.Module):
 
     def __init__(self,

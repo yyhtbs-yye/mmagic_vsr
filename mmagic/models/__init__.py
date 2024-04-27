@@ -5,6 +5,8 @@ from .base_models import (BaseConditionalGAN, BaseEditModel, BaseGAN,
 from .data_preprocessors import DataPreprocessor, MattorPreprocessor
 from .editors import *  # noqa: F401, F403
 from .losses import *  # noqa: F401, F403
+from .pnp_modules import *  # noqa: F401, F403
+from .archs import *  # noqa: F401, F403
 
 __all__ = [
     'BaseGAN', 'BaseTranslationModel', 'BaseEditModel', 'MattorPreprocessor',

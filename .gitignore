@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 **/*.pyc
-
+*.deb
 # C extensions
 *.so
 
@@ -155,4 +155,5 @@ work_dir
 work_dir/
 
 # datasets
+datasets
 datasets/

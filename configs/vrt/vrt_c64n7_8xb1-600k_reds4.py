@@ -52,7 +52,7 @@ data_root = '/workspace/mmagic/datasets/REDS'
 
 train_dataloader = dict(
     num_workers=15,
-    batch_size=3,
+    batch_size=1,
     persistent_workers=False,
     sampler=dict(type='InfiniteSampler', shuffle=True),
     dataset=dict(

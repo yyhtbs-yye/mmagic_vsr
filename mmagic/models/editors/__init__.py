@@ -28,6 +28,8 @@ from .fstrn import FSTRNet
 from .d3dunet import D3DUNet
 from .d2dnet import D2DNet
 
+from .pcdnet import De3QNet
+
 from .naivevsr import NaiveVSR
 
 __all__ = [
@@ -35,5 +37,5 @@ __all__ = [
                     'PConvEncoderDecoder', 'PConvInpaintor', 'RDNNet', 'RealBasicVSR', 'RealBasicVSRNet', 'RealESRGAN', 'UNetDiscriminatorWithSpectralNorm', 'SRCNNNet',
                     'SRGAN', 'ModifiedVGG', 'MSRResNet', 'SwinIRNet', 'TDAN', 'TDANNet', 'TOFlowVFINet', 'TOFlowVSRNet', 'ToFResBlock',
     'RVRTNet', 'VRTNet', 'NaiveVSR', 'D3DNet', 'FTVSRNet', 'IARTNet', 'PSRTRecurrentNet', 'FSTRNet', 
-    'D3DUNet', 'D2DNet'
+    'D3DUNet', 'D2DNet', 'De3QNet',
 ]

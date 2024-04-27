@@ -26,7 +26,8 @@ class WindowAttention(nn.Module):
         mut_attn (bool): If True, add mutual attention to the module. Default: True
     """
 
-    def __init__(self, dim, window_size, num_heads, qkv_bias=False, qk_scale=None, mut_attn=True):
+    def __init__(self, dim, window_size, num_heads, 
+                 qkv_bias=False, qk_scale=None, mut_attn=True):
         super().__init__()
         self.dim = dim
         self.window_size = window_size
@@ -158,7 +159,6 @@ class TMSA(nn.Module):
 
     Args:
         dim (int): Number of input channels.
-        input_resolution (tuple[int]): Input resolution.
         num_heads (int): Number of attention heads.
         window_size (tuple[int]): Window size.
         shift_size (tuple[int]): Shift size for mutual and self attention.
@@ -173,37 +173,27 @@ class TMSA(nn.Module):
         use_checkpoint_ffn (bool): If True, use torch.checkpoint for feed-forward modules. Default: False.
     """
 
-    def __init__(self,
-                 dim,
-                 input_resolution,
-                 num_heads,
+    def __init__(self, dim, num_heads,
                  window_size=(6, 8, 8),
                  shift_size=(0, 0, 0),
-                 mut_attn=True,
-                 mlp_ratio=2.,
-                 qkv_bias=True,
-                 qk_scale=None,
-                 drop_path=0.,
-                 act_layer=nn.GELU,
+                 mut_attn=True, mlp_ratio=2.,
+                 qkv_bias=True, qk_scale=None,
+                 drop_path=0., act_layer=nn.GELU,
                  norm_layer=nn.LayerNorm,
-                 use_checkpoint_attn=False,
-                 use_checkpoint_ffn=False
                  ):
         super().__init__()
         self.dim = dim
-        self.input_resolution = input_resolution
         self.num_heads = num_heads
         self.window_size = window_size
         self.shift_size = shift_size
-        self.use_checkpoint_attn = use_checkpoint_attn
-        self.use_checkpoint_ffn = use_checkpoint_ffn
 
         assert 0 <= self.shift_size[0] < self.window_size[0], "shift_size must in 0-window_size"
         assert 0 <= self.shift_size[1] < self.window_size[1], "shift_size must in 0-window_size"
         assert 0 <= self.shift_size[2] < self.window_size[2], "shift_size must in 0-window_size"
 
-        self.norm1 = norm_layer(dim)
-        self.attn = WindowAttention(dim, window_size=self.window_size, num_heads=num_heads, qkv_bias=qkv_bias,
+        self.norm1 = norm_layer(dim)                                                                
+        self.attn = WindowAttention(dim, window_size=self.window_size, 
+                                    num_heads=num_heads, qkv_bias=qkv_bias,
                                     qk_scale=qk_scale, mut_attn=mut_attn)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
@@ -213,9 +203,10 @@ class TMSA(nn.Module):
         B, D, H, W, C = x.shape
         window_size, shift_size = get_window_size((D, H, W), self.window_size, self.shift_size)
 
-        x = self.norm1(x)
+        x = self.norm1(x)                                                                                   # Normalization and Window Partitioning
 
-        # pad feature maps to multiples of window size
+        # The ``tensor``? is padded to match multiples of the window size, ensuring that attention can be applied evenly across the data.
+
         pad_l = pad_t = pad_d0 = 0
         pad_d1 = (window_size[0] - D % window_size[0]) % window_size[0]
         pad_b = (window_size[1] - H % window_size[1]) % window_size[1]
@@ -223,30 +214,40 @@ class TMSA(nn.Module):
         x = F.pad(x, (0, 0, pad_l, pad_r, pad_t, pad_b, pad_d0, pad_d1), mode='constant')
 
         _, Dp, Hp, Wp, _ = x.shape
-        # cyclic shift
-        if any(i > 0 for i in shift_size):
+
+        # Depending on the ``shift_size``, the tensor may be cyclically shifted to align 
+        # different parts of the data under the attention mechanism, enhancing the model's 
+        # ability to learn from various spatial relationships. [SWIN]
+
+        if any(i > 0 for i in shift_size): # if exist any i in shift_size > 0
             shifted_x = torch.roll(x, shifts=(-shift_size[0], -shift_size[1], -shift_size[2]), dims=(1, 2, 3))
             attn_mask = mask_matrix
         else:
             shifted_x = x
             attn_mask = None
 
-        # partition windows
-        x_windows = window_partition(shifted_x, window_size)  # B*nW, Wd*Wh*Ww, C
+        # The shifted and padded tensor is then split into smaller blocks or windows.
+        x_windows = window_partition(shifted_x, window_size)  # [B*nW, Wd*Wh*Ww, C]
 
-        # attention / shifted attention
+        # ``x_windows`` is token of patches. 
+
+        # The attention mechanism is applied within these windows.
+        # Either self-attention or a combination of mutual and self-attention
         attn_windows = self.attn(x_windows, mask=attn_mask)  # B*nW, Wd*Wh*Ww, C
 
-        # merge windows
+        # After processing through the attention mechanism, 
+        # the tensor blocks are reassembled.
         attn_windows = attn_windows.view(-1, *(window_size + (C,)))
         shifted_x = window_reverse(attn_windows, window_size, B, Dp, Hp, Wp)  # B D' H' W' C
 
-        # reverse cyclic shift
+        # If there was a cyclic shift applied initially, it is reversed to 
+        # bring the tensor back to its original alignment.
         if any(i > 0 for i in shift_size):
             x = torch.roll(shifted_x, shifts=(shift_size[0], shift_size[1], shift_size[2]), dims=(1, 2, 3))
         else:
             x = shifted_x
 
+        # Remove the Paddings (may contains something?)
         if pad_d1 > 0 or pad_r > 0 or pad_b > 0:
             x = x[:, :D, :H, :W, :]
 
@@ -255,6 +256,8 @@ class TMSA(nn.Module):
         return x
 
     def forward_part2(self, x):
+        # The output from the attention mechanism is further processed through a feed-forward network, 
+        # comprising a normalization layer followed by a multi-layer perceptron with ``GELU`` activation.
         return self.drop_path(self.mlp(self.norm2(x)))
 
     def forward(self, x, mask_matrix):
@@ -265,17 +268,9 @@ class TMSA(nn.Module):
             mask_matrix: Attention mask for cyclic shift.
         """
 
-        # attention
-        if self.use_checkpoint_attn:
-            x = x + checkpoint.checkpoint(self.forward_part1, x, mask_matrix)
-        else:
-            x = x + self.forward_part1(x, mask_matrix)
+        x = x + self.forward_part1(x, mask_matrix)
 
-        # feed-forward
-        if self.use_checkpoint_ffn:
-            x = x + checkpoint.checkpoint(self.forward_part2, x)
-        else:
-            x = x + self.forward_part2(x)
+        x = x + self.forward_part2(x)
 
         return x
 
@@ -284,7 +279,6 @@ class TMSAG(nn.Module):
 
     Args:
         dim (int): Number of feature channels
-        input_resolution (tuple[int]): Input resolution.
         depth (int): Depths of this stage.
         num_heads (int): Number of attention head.
         window_size (tuple[int]): Local window size. Default: (6,8,8).
@@ -301,7 +295,6 @@ class TMSAG(nn.Module):
 
     def __init__(self,
                  dim,
-                 input_resolution,
                  depth,
                  num_heads,
                  window_size=[6, 8, 8],
@@ -312,11 +305,8 @@ class TMSAG(nn.Module):
                  qk_scale=None,
                  drop_path=0.,
                  norm_layer=nn.LayerNorm,
-                 use_checkpoint_attn=False,
-                 use_checkpoint_ffn=False
                  ):
         super().__init__()
-        self.input_resolution = input_resolution
         self.window_size = window_size
         self.shift_size = list(i // 2 for i in window_size) if shift_size is None else shift_size
 
@@ -324,7 +314,6 @@ class TMSAG(nn.Module):
         self.blocks = nn.ModuleList([
             TMSA(
                 dim=dim,
-                input_resolution=input_resolution,
                 num_heads=num_heads,
                 window_size=window_size,
                 shift_size=[0, 0, 0] if i % 2 == 0 else self.shift_size,
@@ -334,8 +323,6 @@ class TMSAG(nn.Module):
                 qk_scale=qk_scale,
                 drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
                 norm_layer=norm_layer,
-                use_checkpoint_attn=use_checkpoint_attn,
-                use_checkpoint_ffn=use_checkpoint_ffn
             )
             for i in range(depth)])
 
@@ -368,7 +355,6 @@ class RTMSA(nn.Module):
 
     Args:
         dim (int): Number of input channels.
-        input_resolution (tuple[int]): Input resolution.
         depth (int): Number of blocks.
         num_heads (int): Number of attention heads.
         window_size (int): Local window size.
@@ -383,7 +369,6 @@ class RTMSA(nn.Module):
 
     def __init__(self,
                  dim,
-                 input_resolution,
                  depth,
                  num_heads,
                  window_size,
@@ -392,15 +377,11 @@ class RTMSA(nn.Module):
                  qk_scale=None,
                  drop_path=0.,
                  norm_layer=nn.LayerNorm,
-                 use_checkpoint_attn=False,
-                 use_checkpoint_ffn=None
                  ):
         super(RTMSA, self).__init__()
         self.dim = dim
-        self.input_resolution = input_resolution
 
         self.residual_group = TMSAG(dim=dim,
-                                    input_resolution=input_resolution,
                                     depth=depth,
                                     num_heads=num_heads,
                                     window_size=window_size,
@@ -409,8 +390,6 @@ class RTMSA(nn.Module):
                                     qkv_bias=qkv_bias, qk_scale=qk_scale,
                                     drop_path=drop_path,
                                     norm_layer=norm_layer,
-                                    use_checkpoint_attn=use_checkpoint_attn,
-                                    use_checkpoint_ffn=use_checkpoint_ffn
                                     )
 
         self.linear = nn.Linear(dim, dim)

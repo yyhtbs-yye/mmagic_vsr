@@ -34,8 +34,6 @@ class ImplicitWarpModule(nn.Module):
                  window_size=2,
                  qkv_bias=True,
                  qk_scale=None,
-                 use_checkpoint_attn=False,
-                 use_checkpoint_ffn=False,
                  ):
         super().__init__()
         self.dim = dim

@@ -2,7 +2,7 @@ import os
 import sys
 
 # Set the CUDA_VISIBLE_DEVICES environment variable
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 
 # It's assumed that your train.py script processes command line arguments.
 # We'll mimic the command line arguments here.

@@ -154,8 +154,16 @@ def window_partition(x, window_size):
         windows: (B*num_windows, window_size*window_size, C)
     """
     B, D, H, W, C = x.shape
-    x = x.view(B, D // window_size[0], window_size[0], H // window_size[1], window_size[1], W // window_size[2],
-               window_size[2], C)
+    
+    x = x.view(B, 
+               D // window_size[0], 
+               window_size[0], 
+               H // window_size[1], 
+               window_size[1], 
+               W // window_size[2],
+               window_size[2], 
+               C)
+    
     windows = x.permute(0, 1, 3, 5, 2, 4, 6, 7).contiguous().view(-1, reduce(mul, window_size), C)
 
     return windows
@@ -213,3 +221,81 @@ def compute_mask(D, H, W, window_size, shift_size, device):
     attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
 
     return attn_mask
+
+
+def get_flow_between_frames(x, spynet):
+    """
+    Get flow between frames t and t+1 from x.
+
+    Args:
+    x (tensor): The input tensor with dimensions (batch_size, num_frames, channels, height, width).
+    spynet (function): The function that calculates the flow between two sets of frames.
+
+    Returns:
+    tuple: A tuple containing backward flows and forward flows.
+    """
+    b, n, c, h, w = x.size()
+    x_1 = x[:, :-1, :, :, :].reshape(-1, c, h, w)
+    x_2 = x[:, 1:, :, :, :].reshape(-1, c, h, w)
+
+    # Calculate backward flow
+    flows_backward = spynet(x_1, x_2)
+    flows_backward = [flow.view(b, n-1, 2, h // (2 ** i), w // (2 ** i)) for flow, i in zip(flows_backward, range(4))]
+
+    # Calculate forward flow
+    flows_forward = spynet(x_2, x_1)
+    flows_forward = [flow.view(b, n-1, 2, h // (2 ** i), w // (2 ** i)) for flow, i in zip(flows_forward, range(4))]
+
+    return flows_backward, flows_forward
+
+def get_aligned_image_2frames(x, flows_backward, flows_forward):
+    """
+    Parallel feature warping for 2 frames.
+
+    Args:
+    x (Tensor): Input tensor with dimensions (batch_size, num_frames, channels, height, width).
+    flows_backward (Tensor): Backward optical flows.
+    flows_forward (Tensor): Forward optical flows.
+
+    Returns:
+    list: Aligned images backward and forward.
+    """
+    # Initialize variables
+    n = x.size(1)
+
+    # Backward warping
+    x_backward = [torch.zeros_like(x[:, -1, ...]).repeat(1, 4, 1, 1)]
+    for i in range(n - 1, 0, -1):
+        x_i = x[:, i, ...]
+        flow = flows_backward[:, i - 1, ...]
+        x_backward.insert(0, flow_warp(x_i, flow.permute(0, 2, 3, 1), 'nearest4'))  # frame i+1 aligned towards i
+
+    # Forward warping
+    x_forward = [torch.zeros_like(x[:, 0, ...]).repeat(1, 4, 1, 1)]
+    for i in range(0, n - 1):
+        x_i = x[:, i, ...]
+        flow = flows_forward[:, i, ...]
+        x_forward.append(flow_warp(x_i, flow.permute(0, 2, 3, 1), 'nearest4'))  # frame i-1 aligned towards i
+
+    return [torch.stack(x_backward, 1), torch.stack(x_forward, 1)]
+
+def get_aligned_feature_2frames(x, flows_backward, flows_forward, pa_deform):
+        # backward
+        n = x.size(1)
+        x_backward = [torch.zeros_like(x[:, -1, ...])]
+        for i in range(n - 1, 0, -1):
+            x_i = x[:, i, ...]
+            flow = flows_backward[0][:, i - 1, ...]
+            x_i_warped = flow_warp(x_i, flow.permute(0, 2, 3, 1), 'bilinear')  # frame i+1 aligned towards i
+            x_backward.insert(0, pa_deform(x_i, [x_i_warped], x[:, i - 1, ...], [flow]))
+
+        # forward
+        x_forward = [torch.zeros_like(x[:, 0, ...])]
+        for i in range(0, n - 1):
+            x_i = x[:, i, ...]
+            flow = flows_forward[0][:, i, ...]
+            x_i_warped = flow_warp(x_i, flow.permute(0, 2, 3, 1), 'bilinear')  # frame i-1 aligned towards i
+            x_forward.append(pa_deform(x_i, [x_i_warped], x[:, i + 1, ...], [flow]))
+
+        return [torch.stack(x_backward, 1), torch.stack(x_forward, 1)]
+

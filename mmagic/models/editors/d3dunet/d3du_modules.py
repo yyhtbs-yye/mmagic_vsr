@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from mmagic.models.editors.d3dnet.d3d_modules import DeformConvPack_d
+
 class FeaturePyramidNetworks(nn.Module):
     def __init__(self, in_channel=3, nf=64):
         super(FeaturePyramidNetworks, self).__init__()

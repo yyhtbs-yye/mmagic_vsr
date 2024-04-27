@@ -9,20 +9,20 @@ from mmengine.model.weight_init import constant_init
 from torch.nn.modules.utils import _pair
 from mmagic.models.utils import default_init_weights
 
-
-
-
 class ResBlockD2D(nn.Module):
-    def __init__(self, mid_channels):
+    def __init__(self, mid_channels, deform_groups):
         super(ResBlockD2D, self).__init__()
         self.feat_aggregate = nn.Sequential(
             nn.Conv2d(mid_channels * 2, mid_channels, 3, padding=1, bias=True),
-            DeformConv2dPack(mid_channels, mid_channels, 3, padding=1, deform_groups=8),
-            DeformConv2dPack(mid_channels, mid_channels, 3, padding=1, deform_groups=8))
+            DeformConv2dPack(
+                mid_channels, mid_channels, 3, padding=1, deform_groups=deform_groups),
+            DeformConv2dPack(
+                mid_channels, mid_channels, 3, padding=1, deform_groups=deform_groups),
+        )
         self.align_1 = AugmentedDeformConv2dPack(
-            mid_channels, mid_channels, 3, padding=1, deform_groups=8)
+            mid_channels, mid_channels, 3, padding=1, deform_groups=deform_groups)
         self.align_2 = DeformConv2dPack(
-            mid_channels, mid_channels, 3, padding=1, deform_groups=8)
+            mid_channels, mid_channels, 3, padding=1, deform_groups=deform_groups)
 
         self.lrelu = nn.LeakyReLU(negative_slope=0.1, inplace=True)
 
@@ -48,7 +48,7 @@ class ResBlockD2D(nn.Module):
 
         aligned_lrs = torch.cat(aligned_lrs, dim=1)
 
-        return aligned_lrs + lr_center.unsqueeze(1)
+        return aligned_lrs
 
 class AugmentedDeformConv2dPack(DeformConv2d): # from TDAN
 
@@ -97,3 +97,9 @@ class ResidualBlockNoBN(nn.Module):
         identity = x
         out = self.conv2(self.relu(self.conv1(x)))
         return identity + out * self.res_scale
+
+if __name__ == "__main__":
+    model = ResBlockD2D(mid_channels=64)
+    scripted_model = torch.jit.script(model)
+    print(scripted_model.graph)  # Optionally print the graph to see the transformed model
+
