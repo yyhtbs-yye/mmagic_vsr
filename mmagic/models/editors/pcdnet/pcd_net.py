@@ -9,7 +9,7 @@ from mmcv.cnn import ConvModule
 
 from .basic_modules import ResidualBlockNoBN
 
-from .pyramid_align_pipes import TripleScaleAlignment, DoubleScaleAlignment, SingleScaleAlignment
+from .mini_pyramid_align import TripleScaleAlignment, DoubleScaleAlignment, SingleScaleAlignment
 
 @MODELS.register_module()
 class De3QNet(nn.Module):
