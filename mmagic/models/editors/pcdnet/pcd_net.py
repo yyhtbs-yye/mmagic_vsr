@@ -10,11 +10,11 @@ from mmcv.cnn import ConvModule
 from .basic_modules import ResidualBlockNoBN
 
 from .mini_pyramid_align import TripleScaleAlignment, DoubleScaleAlignment, SingleScaleAlignment
-
+from .basic_pyramid_align import PyramidDeformableAlignment
 @MODELS.register_module()
 class De3QNet(nn.Module):
     def __init__(self, upscale_factor=4, in_frames=7,
-                 in_channels=3, out_channels=3, pyramid_depth=3, 
+                 in_channels=3, out_channels=3, pyramid_depth=4, 
                  preproc_config={'n_blocks': 3, 'n_channels': 256},
                  align_config={'n_channels': 256, 'deform_groups': 8},
                  postproc_config={'n_blocks': 6, 'n_channels': 128, 'kernel_size': 5}, 
@@ -44,6 +44,9 @@ class De3QNet(nn.Module):
         elif pyramid_depth == 1:
             self.temporal_alignment = SingleScaleAlignment(n_channels=align_config['n_channels'], 
                                                            deform_groups=align_config['deform_groups'])
+        elif pyramid_depth == 4:
+            self.temporal_alignment = PyramidDeformableAlignment(n_channels=align_config['n_channels'], 
+                                                                 deform_groups=align_config['deform_groups'])
 
         
         
