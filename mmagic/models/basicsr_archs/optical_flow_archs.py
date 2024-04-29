@@ -10,47 +10,23 @@ from mmengine.model import BaseModule
 from mmagic.models.utils import flow_warp, make_layer
 from mmengine.runner import load_checkpoint
 
-class SPyNetBasicModule(nn.Module):
-    """Basic Module for SpyNet."""
+
+class BasicModule(nn.Module):
+    """Basic Module for SpyNet.
+    """
 
     def __init__(self):
-        super(SPyNetBasicModule, self).__init__()
+        super(BasicModule, self).__init__()
 
         self.basic_module = nn.Sequential(
-            nn.Conv2d(in_channels=8, out_channels=32, kernel_size=7, stride=1, padding=3), 
-            nn.ReLU(inplace=False),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=7, stride=1, padding=3), 
-            nn.ReLU(inplace=False),
-            nn.Conv2d(in_channels=64, out_channels=32, kernel_size=7, stride=1, padding=3), 
-            nn.ReLU(inplace=False),
-            nn.Conv2d(in_channels=32, out_channels=16, kernel_size=7, stride=1, padding=3), 
-            nn.ReLU(inplace=False),
-            nn.Conv2d(in_channels=16, out_channels=2, kernel_size=7, stride=1, padding=3)
-        )
+            nn.Conv2d(in_channels=8, out_channels=32, kernel_size=7, stride=1, padding=3), nn.ReLU(inplace=False),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=7, stride=1, padding=3), nn.ReLU(inplace=False),
+            nn.Conv2d(in_channels=64, out_channels=32, kernel_size=7, stride=1, padding=3), nn.ReLU(inplace=False),
+            nn.Conv2d(in_channels=32, out_channels=16, kernel_size=7, stride=1, padding=3), nn.ReLU(inplace=False),
+            nn.Conv2d(in_channels=16, out_channels=2, kernel_size=7, stride=1, padding=3))
 
     def forward(self, tensor_input):
         return self.basic_module(tensor_input)
-
-    def __init__(self, pretrained):
-        super().__init__()
-
-        self.basic_module = nn.ModuleList(
-            [SPyNetBasicModule() for _ in range(6)])
-
-        if isinstance(pretrained, str):
-            logger = MMLogger.get_current_instance()
-            load_checkpoint(self, pretrained, strict=True, logger=logger)
-        elif pretrained is not None:
-            raise TypeError('[pretrained] should be str or None, '
-                            f'but got {type(pretrained)}.')
-
-        self.register_buffer(
-            'mean',
-            torch.Tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
-        self.register_buffer(
-            'std',
-            torch.Tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
-
 
 @MODELS.register_module()
 class SpyNetMultiOut(BaseModule):
@@ -64,15 +40,17 @@ class SpyNetMultiOut(BaseModule):
     def __init__(self, pretrained=None, return_levels=[5]):
         super(SpyNetMultiOut, self).__init__()
         self.return_levels = return_levels
-        self.basic_module = nn.ModuleList([SPyNetBasicModule() for _ in range(6)])
+        self.basic_module = nn.ModuleList([BasicModule() for _ in range(6)])
 
-        if isinstance(pretrained, str):
-            logger = MMLogger.get_current_instance()
-            load_checkpoint(self, pretrained, strict=True, logger=logger)
-        elif pretrained is not None:
-            raise TypeError('[pretrained] should be str or None, '
-                            f'but got {type(pretrained)}.')
-
+        # if isinstance(pretrained, str):
+        #     logger = MMLogger.get_current_instance()
+        #     load_checkpoint(self, pretrained, strict=True, logger=logger)
+        # elif pretrained is not None:
+        #     raise TypeError('[pretrained] should be str or None, '
+        #                     f'but got {type(pretrained)}.')
+        
+        self.load_state_dict(torch.load(pretrained, map_location=lambda storage, loc: storage)['params'])
+        
         self.register_buffer(
             'mean',
             torch.Tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))

@@ -10,17 +10,14 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 
 from mmagic.models.basicsr_archs.optical_flow_archs import SpyNetMultiOut
-from mmagic.models.basicsr_archs.x_attentions import GLUAttention
 
 from mmagic.models.basicsr_archs.upsample import Conv3dPixelShuffle as Upsample
 
 from mmagic.models.utils import flow_warp
 
-from .dcnv2_modules import DCNv2PackFlowGuided
+from .vrt_modules import UnetBlock
 
-from .vrt_modules import VRTModule
-
-from tmsa_modules import RTMSA
+from .tmsa_modules import RTMSA
 
 @MODELS.register_module()
 class VRTNet(BaseModule):
@@ -45,7 +42,7 @@ class VRTNet(BaseModule):
                  norm_layer=nn.LayerNorm,
                  n_frames=2,
                  deformable_groups=16,
-                 spynet_pretrained=None
+                 spynet_path=None
                  ):
         super().__init__()
         self.in_channels = in_channels
@@ -59,13 +56,13 @@ class VRTNet(BaseModule):
                                     kernel_size=(1, 3, 3), 
                                     padding=(0, 1, 1))
 
-        self.spynet = SpyNetMultiOut(pretrained=spynet_pretrained, 
+        self.spynet = SpyNetMultiOut(pretrained=spynet_path, 
                                      return_levels=[2, 3, 4, 5])
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, 7*unet_block_depths+lnet_n_blocks*lnet_block_depths)]  # stochastic depth decay rule
         
         self.unet = nn.ModuleList([
-            VRTModule(
+            UnetBlock(
                 in_channels=unet_block_channels,
                 out_channels=unet_block_channels,
                 n_mma_blocks = unet_block_depths // 4 * 3,
@@ -143,7 +140,7 @@ class VRTNet(BaseModule):
 
         u = self.apply_unet(x, flows_backward, flows_forward)
         u = self.ffn(u)
-        u = self.lnet(u)
+        u = self.apply_lnet(u)
 
         u = rearrange(u, 'n c d h w -> n d h w c')
         u = self.norm(u)
@@ -174,6 +171,13 @@ class VRTNet(BaseModule):
 
         return x
 
+    def apply_lnet(self, x):
+        '''Subsequent l-net network for feature refine.'''
+
+        for layer in self.lnet:
+            x = layer(x)
+        return x
+    
     def compute_flow(self, x):
         b, n, c, h, w = x.size()
         lrs_1 = x[:, :-1, :, :, :].reshape(-1, c, h, w)

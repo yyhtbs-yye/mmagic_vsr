@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 def flow_warp(x, flow,
-              interpolation='bilinear',
+              interp_mode='bilinear',
               padding_mode='zeros',
               align_corners=True):
     """Warp an image or a feature map with optical flow.
@@ -14,7 +14,7 @@ def flow_warp(x, flow,
         flow (Tensor): Tensor with size (n, h, w, 2). The last dimension is
             a two-channel, denoting the width and height relative offsets.
             Note that the values are not normalized to [-1, 1].
-        interpolation (str): Interpolation mode: 'nearest' or 'bilinear'.
+        interp_mode (str): Interpolation mode: 'nearest' or 'bilinear'.
             Default: 'bilinear'.
         padding_mode (str): Padding mode: 'zeros' or 'border' or 'reflection'.
             Default: 'zeros'.
@@ -45,7 +45,7 @@ def flow_warp(x, flow,
 
     grid_flow = grid + flow
 
-    if interpolation == 'nearest4': # todo: bug, no gradient for flow model in this case!!! but the result is good
+    if interp_mode == 'nearest4': # todo: bug, no gradient for flow model in this case!!! but the result is good
         vgrid_x_floor = 2.0 * torch.floor(grid_flow[:, :, :, 0]) / max(w - 1, 1) - 1.0
         vgrid_x_ceil = 2.0 * torch.ceil(grid_flow[:, :, :, 0]) / max(w - 1, 1) - 1.0
         vgrid_y_floor = 2.0 * torch.floor(grid_flow[:, :, :, 1]) / max(h - 1, 1) - 1.0
@@ -79,7 +79,7 @@ def flow_warp(x, flow,
     output = F.grid_sample(
         x,
         grid_flow,
-        mode=interpolation,
+        mode=interp_mode,
         padding_mode=padding_mode,
         align_corners=align_corners)
     return output

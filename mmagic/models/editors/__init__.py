@@ -16,7 +16,8 @@ from .swinir import SwinIRNet
 from .tdan import TDAN, TDANNet
 from .tof import TOFlowVFINet, TOFlowVSRNet, ToFResBlock
 
-from .vrt import VRTNet
+# Switch between ".vrt_refactor" and ".vrt"
+from .vrt_refactor import VRTNet
 from .rvrt import RVRTNet
 from .d3dnet import D3DNet
 from .ftvsr import FTVSRNet

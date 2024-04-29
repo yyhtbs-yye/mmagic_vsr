@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 from einops import rearrange
 
-from .attention_modules import MMA, MSA
+from .attention_modules import WindowMutualSelfAttention
 
 from mmagic.models.basicsr_archs.x_attentions import GLUAttention
 from mmcv.cnn.bricks.drop import DropPath
@@ -19,7 +19,7 @@ class TMSA(nn.Module): # Temporal Mutual Self Attention
                  qkv_bias=True, qk_scale=None,          # Override default qk scale of head_dim ** -0.5 if set.
                  drop_path=0., act_layer=nn.GELU,
                  norm_layer=nn.LayerNorm,
-                 mut_attn=True,
+                 use_mutual=True,
                  ):
         
         super().__init__()
@@ -33,14 +33,10 @@ class TMSA(nn.Module): # Temporal Mutual Self Attention
         assert 0 <= self.shift_size[2] < self.window_size[2], "shift_size must in 0-window_size"
 
         self.prenorm = norm_layer(n_channels)
-        if mut_attn:
-            self.attention = MMA(n_channels, window_size=self.window_size, 
-                                 n_heads=n_heads, qkv_bias=qkv_bias,
-                                 qk_scale=qk_scale)
-        else:
-            self.attention = MSA(n_channels, window_size=self.window_size,
-                                 n_heads=n_heads, qkv_bias=qkv_bias,
-                                 qk_scale=qk_scale)
+
+        self.attention = WindowMutualSelfAttention(n_channels, window_size=self.window_size, 
+                                                   n_heads=n_heads, qkv_bias=qkv_bias,
+                                                   qk_scale=qk_scale, use_mutual=use_mutual)
             
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
@@ -123,7 +119,7 @@ class TMSAG(nn.Module):                                     # Temporal Mutual Se
 
     def __init__(self, n_channels, n_blocks, n_heads,
                  window_size=[6, 8, 8], shift_size=None,    # Shift size for mutual and self attention. Default: None.
-                 mut_attn=True, mlp_ratio=2.,               # Ratio of mlp hidden n_channels to embedding n_channels. Default: 2.
+                 use_mutual=True, mlp_ratio=2.,               # Ratio of mlp hidden n_channels to embedding n_channels. Default: 2.
                  qkv_bias=False, qk_scale=None,             # Override default qk scale of head_dim ** -0.5 if set 
                  drop_path=0., norm_layer=nn.LayerNorm,
                  ):
@@ -138,7 +134,7 @@ class TMSAG(nn.Module):                                     # Temporal Mutual Se
                 n_heads=n_heads,
                 window_size=window_size,
                 shift_size=[0, 0, 0] if i % 2 == 0 else self.shift_size,
-                mut_attn=mut_attn,
+                use_mutual=use_mutual,
                 mlp_ratio=mlp_ratio,
                 qkv_bias=qkv_bias,
                 qk_scale=qk_scale,
@@ -181,7 +177,7 @@ class RTMSA(nn.Module):                                     # Residual TMSA. Onl
         self.n_channels = n_channels
 
         self.residual_group = TMSAG(n_channels=n_channels, n_blocks=n_blocks, n_heads=n_heads,
-                                    window_size=window_size, mut_attn=False,
+                                    window_size=window_size, use_mutual=False,
                                     mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, 
                                     qk_scale=qk_scale, drop_path=drop_path,
                                     norm_layer=norm_layer,

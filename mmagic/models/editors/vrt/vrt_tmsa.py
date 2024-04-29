@@ -198,6 +198,7 @@ class TMSA(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
         self.mlp = Mlp_GEGLU(in_features=dim, hidden_features=int(dim * mlp_ratio), act_layer=act_layer)
+        self.mut_attn = mut_attn
 
     def forward_part1(self, x, mask_matrix):
         B, D, H, W, C = x.shape
