@@ -2,7 +2,6 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.utils.checkpoint as checkpoint
 import numpy as np
 from einops import rearrange
 
@@ -122,7 +121,7 @@ class TMSA(nn.Module): # Temporal Mutual Self Attention
 
 class TMSAG(nn.Module):                                     # Temporal Mutual Self Attention Group (TMSAG).
 
-    def __init__(self, n_channels, depth, n_heads,
+    def __init__(self, n_channels, n_blocks, n_heads,
                  window_size=[6, 8, 8], shift_size=None,    # Shift size for mutual and self attention. Default: None.
                  mut_attn=True, mlp_ratio=2.,               # Ratio of mlp hidden n_channels to embedding n_channels. Default: 2.
                  qkv_bias=False, qk_scale=None,             # Override default qk scale of head_dim ** -0.5 if set 
@@ -146,7 +145,7 @@ class TMSAG(nn.Module):                                     # Temporal Mutual Se
                 drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
                 norm_layer=norm_layer,
             )
-            for i in range(depth)])
+            for i in range(n_blocks)])
 
     def forward(self, x):
         """ Forward function.
@@ -174,14 +173,14 @@ class TMSAG(nn.Module):                                     # Temporal Mutual Se
 
 class RTMSA(nn.Module):                                     # Residual TMSA. Only used in stage 8.
 
-    def __init__(self, n_channels, depth, n_heads, window_size,
-                 mlp_ratio=2., qkv_bias=True, qk_scale=None,
+    def __init__(self, n_channels, n_blocks, n_heads, 
+                 window_size, mlp_ratio=2., qkv_bias=True, qk_scale=None,
                  drop_path=0., norm_layer=nn.LayerNorm,
                  ):
         super(RTMSA, self).__init__()
         self.n_channels = n_channels
 
-        self.residual_group = TMSAG(n_channels=n_channels, depth=depth, n_heads=n_heads,
+        self.residual_group = TMSAG(n_channels=n_channels, n_blocks=n_blocks, n_heads=n_heads,
                                     window_size=window_size, mut_attn=False,
                                     mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, 
                                     qk_scale=qk_scale, drop_path=drop_path,

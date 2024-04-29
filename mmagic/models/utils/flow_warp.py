@@ -3,8 +3,7 @@ import torch
 import torch.nn.functional as F
 
 
-def flow_warp(x,
-              flow,
+def flow_warp(x, flow,
               interpolation='bilinear',
               padding_mode='zeros',
               align_corners=True):
@@ -45,11 +44,38 @@ def flow_warp(x,
     grid.requires_grad = False
 
     grid_flow = grid + flow
+
+    if interpolation == 'nearest4': # todo: bug, no gradient for flow model in this case!!! but the result is good
+        vgrid_x_floor = 2.0 * torch.floor(grid_flow[:, :, :, 0]) / max(w - 1, 1) - 1.0
+        vgrid_x_ceil = 2.0 * torch.ceil(grid_flow[:, :, :, 0]) / max(w - 1, 1) - 1.0
+        vgrid_y_floor = 2.0 * torch.floor(grid_flow[:, :, :, 1]) / max(h - 1, 1) - 1.0
+        vgrid_y_ceil = 2.0 * torch.ceil(grid_flow[:, :, :, 1]) / max(h - 1, 1) - 1.0
+
+        output00 = F.grid_sample(x, torch.stack((vgrid_x_floor, vgrid_y_floor), dim=3), 
+                                 mode='nearest', 
+                                 padding_mode=padding_mode, 
+                                 align_corners=align_corners)
+        output01 = F.grid_sample(x, torch.stack((vgrid_x_floor, vgrid_y_ceil), dim=3), 
+                                 mode='nearest', 
+                                 padding_mode=padding_mode, 
+                                 align_corners=align_corners)
+        output10 = F.grid_sample(x, torch.stack((vgrid_x_ceil, vgrid_y_floor), dim=3), 
+                                 mode='nearest', 
+                                 padding_mode=padding_mode, 
+                                 align_corners=align_corners)
+        output11 = F.grid_sample(x, torch.stack((vgrid_x_ceil, vgrid_y_ceil), dim=3), 
+                                 mode='nearest', 
+                                 padding_mode=padding_mode, 
+                                 align_corners=align_corners)
+
+        return torch.cat([output00, output01, output10, output11], 1)
+
     # scale grid_flow to [-1,1]
     grid_flow_x = 2.0 * grid_flow[:, :, :, 0] / max(w - 1, 1) - 1.0
     grid_flow_y = 2.0 * grid_flow[:, :, :, 1] / max(h - 1, 1) - 1.0
     grid_flow = torch.stack((grid_flow_x, grid_flow_y), dim=3)
     grid_flow = grid_flow.type(x.type())
+
     output = F.grid_sample(
         x,
         grid_flow,

@@ -9,10 +9,10 @@ class Conv3dPixelShuffle(nn.Sequential):
 
     Args:
         scale (int): Scale factor. Supported scales: 2^n and 3.
-        num_feat (int): Channel number of intermediate features.
+        n_channels (int): Channel number of intermediate features.
     """
 
-    def __init__(self, scale, num_feat):
+    def __init__(self, scale, n_channels):
         assert LooseVersion(torch.__version__) >= LooseVersion('1.8.1'), \
             'PyTorch version >= 1.8.1 to support 5D PixelShuffle.'
 
@@ -28,19 +28,19 @@ class Conv3dPixelShuffle(nn.Sequential):
         m = []
         if (scale & (scale - 1)) == 0:  # scale = 2^n
             for _ in range(int(math.log(scale, 2))):
-                m.append(nn.Conv3d(num_feat, 4 * num_feat, kernel_size=(1, 3, 3), padding=(0, 1, 1)))
+                m.append(nn.Conv3d(n_channels, 4 * n_channels, kernel_size=(1, 3, 3), padding=(0, 1, 1)))
                 m.append(Transpose_Dim12())
                 m.append(nn.PixelShuffle(2))
                 m.append(Transpose_Dim12())
                 m.append(nn.LeakyReLU(negative_slope=0.1, inplace=True))
-            m.append(nn.Conv3d(num_feat, num_feat, kernel_size=(1, 3, 3), padding=(0, 1, 1)))
+            m.append(nn.Conv3d(n_channels, n_channels, kernel_size=(1, 3, 3), padding=(0, 1, 1)))
         elif scale == 3:
-            m.append(nn.Conv3d(num_feat, 9 * num_feat, kernel_size=(1, 3, 3), padding=(0, 1, 1)))
+            m.append(nn.Conv3d(n_channels, 9 * n_channels, kernel_size=(1, 3, 3), padding=(0, 1, 1)))
             m.append(Transpose_Dim12())
             m.append(nn.PixelShuffle(3))
             m.append(Transpose_Dim12())
             m.append(nn.LeakyReLU(negative_slope=0.1, inplace=True))
-            m.append(nn.Conv3d(num_feat, num_feat, kernel_size=(1, 3, 3), padding=(0, 1, 1)))
+            m.append(nn.Conv3d(n_channels, n_channels, kernel_size=(1, 3, 3), padding=(0, 1, 1)))
         else:
             raise ValueError(f'scale {scale} is not supported. ' 'Supported scales: 2^n and 3.')
         super(Conv3dPixelShuffle, self).__init__(*m)
