@@ -25,7 +25,7 @@ class PyramidDeformableAlignment(nn.Module):
                                     align_corners=False)
 
         self.offset_l1 = nn.Sequential(
-            nn.Conv2d(self.n_channels*2, self.offset_channels, 
+            nn.Conv2d(self.n_channels*2, self.n_channels, 
                       kernel_size=7, padding=3),
             DeformConv2dPack(self.n_channels, self.n_channels, 
                              3, padding=1, deform_groups=8),
@@ -34,7 +34,7 @@ class PyramidDeformableAlignment(nn.Module):
                 )
         
         self.offset_l2 = nn.Sequential(
-            nn.Conv2d(self.n_channels*2, self.offset_channels, 
+            nn.Conv2d(self.n_channels*2, self.n_channels, 
                       kernel_size=5, padding=2),
             DeformConv2dPack(self.n_channels, self.n_channels, 
                              3, padding=1, deform_groups=8),
@@ -43,7 +43,7 @@ class PyramidDeformableAlignment(nn.Module):
                 )
         
         self.offset_l3 = nn.Sequential(
-            nn.Conv2d(self.n_channels*2, self.offset_channels, 
+            nn.Conv2d(self.n_channels*2, self.n_channels, 
                       kernel_size=3, padding=1),
             DeformConv2dPack(self.n_channels, self.n_channels, 
                              3, padding=1, deform_groups=8),
