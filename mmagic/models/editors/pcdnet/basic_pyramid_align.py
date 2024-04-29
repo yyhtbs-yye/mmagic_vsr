@@ -24,14 +24,32 @@ class PyramidDeformableAlignment(nn.Module):
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', 
                                     align_corners=False)
 
-        self.offset_l1 = nn.Conv2d(self.n_channels*2, self.offset_channels, 
-                                   kernel_size=7, padding=3)
+        self.offset_l1 = nn.Sequential(
+            nn.Conv2d(self.n_channels*2, self.offset_channels, 
+                      kernel_size=7, padding=3),
+            DeformConv2dPack(self.n_channels, self.n_channels, 
+                             3, padding=1, deform_groups=8),
+            DeformConv2dPack(self.n_channels, self.offset_channels, 
+                             3, padding=1, deform_groups=8),
+                )
         
-        self.offset_l2 = nn.Conv2d(self.n_channels*2, self.offset_channels, 
-                                   kernel_size=5, padding=2)
+        self.offset_l2 = nn.Sequential(
+            nn.Conv2d(self.n_channels*2, self.offset_channels, 
+                      kernel_size=5, padding=2),
+            DeformConv2dPack(self.n_channels, self.n_channels, 
+                             3, padding=1, deform_groups=8),
+            DeformConv2dPack(self.n_channels, self.offset_channels, 
+                             3, padding=1, deform_groups=8),
+                )
         
-        self.offset_l3 = nn.Conv2d(self.n_channels*2, self.offset_channels, 
-                                   kernel_size=3, padding=1)
+        self.offset_l3 = nn.Sequential(
+            nn.Conv2d(self.n_channels*2, self.offset_channels, 
+                      kernel_size=3, padding=1),
+            DeformConv2dPack(self.n_channels, self.n_channels, 
+                             3, padding=1, deform_groups=8),
+            DeformConv2dPack(self.n_channels, self.offset_channels, 
+                             3, padding=1, deform_groups=8),
+                )
 
         self.align_l2 = GuidedDeformConv2dPack(n_channels, n_channels, 
                                                kernel_size=3, padding=1, 
@@ -44,6 +62,10 @@ class PyramidDeformableAlignment(nn.Module):
         self.align_fi = GuidedDeformConv2dPack(n_channels, n_channels, 
                                                kernel_size=3, padding=1, 
                                                deform_groups=deform_groups)
+
+        self.post_deform = DeformConv2dPack(n_channels, n_channels, 
+                                            kernel_size=3, padding=1, 
+                                            deform_groups=deform_groups)
 
         constant_init(self.offset_l1, val=0, bias=0)
         constant_init(self.offset_l2, val=0, bias=0)
@@ -94,7 +116,7 @@ class PyramidDeformableAlignment(nn.Module):
                 aligned_feat_l1 = self.align_fi(feat_neig_l1, offset_l1)                         # Align the feature using the final offset
 
                 # Final Output Append
-                aligned_feats_l1.append(aligned_feat_l1)                                            # Align the feature using the final offset
+                aligned_feats_l1.append(self.post_deform(aligned_feat_l1))                                            # Align the feature using the final offset
 
         return torch.stack(aligned_feats_l1, dim=1)                                                 # Stack the aligned features along a new dimension
 
