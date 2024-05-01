@@ -11,6 +11,10 @@ from .basic_modules import ResidualBlockNoBN
 
 from .mini_pyramid_align import TripleScaleAlignment, DoubleScaleAlignment, SingleScaleAlignment
 from .basic_pyramid_align import PyramidDeformableAlignment
+from .edvrpcd_align import PCDAlignment
+from .spynet_align import SPyNetAlignment
+
+
 @MODELS.register_module()
 class De3QNet(nn.Module):
     def __init__(self, upscale_factor=4, in_frames=7,
@@ -47,8 +51,13 @@ class De3QNet(nn.Module):
         elif pyramid_depth == 4:
             self.temporal_alignment = PyramidDeformableAlignment(n_channels=align_config['n_channels'], 
                                                                  deform_groups=align_config['deform_groups'])
+        elif pyramid_depth == 5:
+            self.temporal_alignment = PCDAlignment(n_channels=align_config['n_channels'], 
+                                                                 deform_groups=align_config['deform_groups'])
+        elif pyramid_depth == "SPyNet":
+            self.temporal_alignment = SPyNetAlignment(n_channels=align_config['n_channels'], 
+                                                                 deform_groups=align_config['deform_groups'])
 
-        
         
         self.temporal_aggregation = nn.Conv2d(in_frames * align_config['n_channels'], 
                                               postproc_config['n_channels'], 

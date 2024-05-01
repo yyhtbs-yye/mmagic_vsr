@@ -38,7 +38,7 @@ train_pipeline = [
 ]
 
 val_pipeline = [
-    dict(type='GenerateFrameIndices', interval_list=[1], frames_per_clip=99),
+    dict(type='GenerateFrameIndices', interval_list=[1], frames_per_clip=99, seed=1),
     dict(type='LoadImageFromFile', key='img', channel_order='rgb'),
     dict(type='LoadImageFromFile', key='gt', channel_order='rgb'),
     dict(type='SetValues', dictionary=dict(scale=scale)),

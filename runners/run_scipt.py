@@ -2,8 +2,10 @@
 import os
 
 cuda_id = 3
-cfg_path = "/workspace/mmagic/configs/vrt/vrt_c64n7_8xb1-600k_reds4.py"
-model_parameters = {}
+cfg_path = "configs/pcdnet/pcdnet_c64n7_8xb1-600k_reds4.py"
+model_parameters = {
+        'pyramid_depth': "ResiduePCD"
+    }
 
 os.environ['CUDA_VISIBLE_DEVICES'] = str(cuda_id)
 import torch  # Assuming PyTorch is the backend

@@ -4,7 +4,7 @@ headers = {'Content-Type': 'application/json'}
 data = {
     'cfg_path': 'configs/pcdnet/pcdnet_c64n7_8xb1-600k_reds4.py',
     'model_parameters': {
-        'pyramid_depth': 3
+        'pyramid_depth': "ResiduePCD"
     }
 }
 response = requests.post(url, headers=headers, json=data)
