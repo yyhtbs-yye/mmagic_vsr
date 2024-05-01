@@ -29,39 +29,24 @@ class SPyNetAlignment(nn.Module):
                                           padding=1, act_cfg=act_cfg)
         self.offset_conv_b_3 = ConvModule(n_channels, n_channels, 3, 
                                           padding=1, act_cfg=act_cfg)
-        self.offset_conv_a_2 = ConvModule(n_channels * 2, n_channels, 3, 
+        self.offset_conv_a_2 = ConvModule(n_channels * 3, n_channels, 3, 
                                           padding=1, act_cfg=act_cfg)
-        self.offset_conv_b_2 = ConvModule(n_channels * 2, n_channels, 3, 
+        self.offset_conv_b_2 = ConvModule(n_channels, n_channels, 3, 
                                           padding=1, act_cfg=act_cfg)
         self.offset_conv_c_2 = ConvModule(n_channels, n_channels, 3, 
                                           padding=1, act_cfg=act_cfg)
         self.dcn_pack_2 = ModulatedDCNPack(n_channels, n_channels, 3,
                                            padding=1, deform_groups=deform_groups)
-        self.feat_conv_b_2 = ConvModule(n_channels * 2, n_channels, 3,
-                                        padding=1, act_cfg=act_cfg)
-        self.offset_conv_a_1 = ConvModule(n_channels * 2, n_channels, 3, 
+        self.offset_conv_a_1 = ConvModule(n_channels * 3, n_channels, 3, 
                                           padding=1, act_cfg=act_cfg)
-        self.offset_conv_b_1 = ConvModule(n_channels * 2, n_channels, 3, 
+        self.offset_conv_b_1 = ConvModule(n_channels, n_channels, 3, 
                                           padding=1, act_cfg=act_cfg)
         self.offset_conv_c_1 = ConvModule(n_channels, n_channels, 3, 
                                           padding=1, act_cfg=act_cfg)
         self.dcn_pack_1 = ModulatedDCNPack(n_channels, n_channels, 3,
                                            padding=1, deform_groups=deform_groups)
-        self.feat_conv_b_1 = ConvModule(n_channels * 2, n_channels, 3,
-                                        padding=1, act_cfg=None)
-
         self.dcn_pack_f = ModulatedDCNPack(n_channels, n_channels, 3,
                                            padding=1, deform_groups=deform_groups)
-
-        # Cascading DCN (Maybe removed for fair testing)
-        self.cas_offset_conv_a = ConvModule(n_channels * 2, n_channels, 3, 
-                                           padding=1, act_cfg=act_cfg)
-        self.cas_offset_conv_b = ConvModule(n_channels, n_channels, 3, 
-                                           padding=1, act_cfg=act_cfg)
-        self.cas_dcnpack = ModulatedDCNPack(n_channels, n_channels, 3, 
-                                            padding=1, deform_groups=deform_groups)
-
-        self.lrelu = nn.LeakyReLU(negative_slope=0.1, inplace=True)
         
     def forward(self, x):
         # x1: level 1, original spatial size
