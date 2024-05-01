@@ -100,11 +100,11 @@ class SPyNetAlignment(nn.Module):
 
                 feat_align_l2 = self.dcn_pack_2(feat_neig_l2, u_offset3)                                    # Align level 2 features using the offset from level 3
 
-                c_offset2 = self.offset_conv_a_2(torch.cat([feat_align_l2, feat_center_l2], dim=1))
+                offset2 = self.offset_conv_a_2(torch.cat([feat_align_l2, feat_center_l2, u_offset3], dim=1))
                 
-                offset2 = self.offset_conv_b_2(torch.cat([c_offset2, u_offset3], dim=1))           # Compute offset for level 2
+                offset2 = self.offset_conv_b_2(offset2)           # Compute offset for level 2
                 
-                offset2 = self.offset_conv_c_2(offset2) + u_offset3 + c_offset2
+                offset2 = self.offset_conv_c_2(offset2) + u_offset3
 
                 u_offset2 = self.upsample(offset2) * 2          # Upsample offset from level 2 to level 1 size
 
@@ -113,19 +113,16 @@ class SPyNetAlignment(nn.Module):
 
                 feat_align_l1 = self.dcn_pack_1(feat_neig_l1, u_offset2)                                    # Align level 2 features using the offset from level 3
 
-                c_offset1 = self.offset_conv_a_1(torch.cat([feat_align_l1, feat_center_l1], dim=1))
+                offset1 = self.offset_conv_a_1(torch.cat([feat_align_l1, feat_center_l1, u_offset2], dim=1))
                 
-                offset1 = self.offset_conv_b_1(torch.cat([c_offset1, u_offset2], dim=1))           # Compute offset for level 2
+                offset1 = self.offset_conv_b_1(offset1)           # Compute offset for level 2
 
-                offset1 = self.offset_conv_c_1(offset1) + u_offset2 + c_offset1
+                offset1 = self.offset_conv_c_1(offset1) + u_offset2
 
                 # Final Output
                 feat_align_f = self.dcn_pack_f(feat_neig_l1, offset1)                         # Align the feature using the final offset
 
-                # Cascading
-                offset = torch.cat([feat_align_f, feat_center_l1], dim=1)
-                offset = self.cas_offset_conv_b(self.cas_offset_conv_a(offset))
-                out_feat.append(self.lrelu(self.cas_dcnpack(feat_align_f, offset)))
+                out_feat.append(feat_align_f)
 
         return torch.stack(out_feat, dim=1)                                                 # Stack the aligned features along a new dimension
 
