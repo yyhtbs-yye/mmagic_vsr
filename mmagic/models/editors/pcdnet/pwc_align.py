@@ -39,7 +39,6 @@ class PWCNetAlignment(nn.Module):
         act_cfg=dict(type='LeakyReLU', negative_slope=0.1)
         self.md = 3
 
-        self.offset_channels = deform_groups * 2 * 3 * 3
         self.deform_groups = deform_groups
         self.n_channels = n_channels
 
@@ -58,7 +57,7 @@ class PWCNetAlignment(nn.Module):
         self.conv3_enc_b = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
 
         self.conv3_dec_a = ConvModule((self.md*2+1)**2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.conv3_dec_b = ConvModule(n_channels + (self.md*2+1)**2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.conv3_dec_b = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
         self.conv3_dec_c = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
 
         self.conv2_dec_a = ConvModule((self.md*2+1)**2 + 3*n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
@@ -114,7 +113,7 @@ class PWCNetAlignment(nn.Module):
 
                 # Align L3
                 cost_feat_l3 = F.leaky_relu(input=corr(feat_center_l3, feat_neig_l3, self.md), negative_slope=0.1, inplace=False)
-                cost_feat_l3 = torch.cat([ self.conv3_dec_a(cost_feat_l3), cost_feat_l3 ], 1)
+                cost_feat_l3 = self.conv3_dec_a(cost_feat_l3)
                 cost_feat_l3 = torch.cat([ self.conv3_dec_b(cost_feat_l3), cost_feat_l3 ], 1)
                 offset3 = self.conv3_dec_c(cost_feat_l3)
                 # Upsample Flow and Feature
@@ -124,8 +123,7 @@ class PWCNetAlignment(nn.Module):
                 # Align L2: Warping l2 -> Cost Volume
                 feat_align_l2 = self.dcn_pack_2(feat_neig_l2, u_offset3)
                 cost_volume_l2 = F.leaky_relu(input=corr(feat_center_l2, feat_align_l2, self.md), negative_slope=0.1, inplace=False)
-                cost_feat_l2 = torch.cat([ cost_volume_l2, feat_center_l2, u_offset3, u_cost_feat_l3 ], 1)
-                cost_feat_l2 = torch.cat([ self.conv2_dec_a(cost_feat_l2), cost_feat_l2 ], 1)
+                cost_feat_l2 = self.conv2_dec_a(torch.cat([ cost_volume_l2, feat_center_l2, u_offset3, u_cost_feat_l3 ], 1))
                 cost_feat_l2 = torch.cat([ self.conv2_dec_b(cost_feat_l2), cost_feat_l2 ], 1)
                 offset2 = self.conv2_dec_c(cost_feat_l2)
                 # Upsample Flow and Feature
@@ -135,8 +133,7 @@ class PWCNetAlignment(nn.Module):
                 # Align L1
                 feat_align_l1 = self.dcn_pack_1(feat_neig_l1, u_offset2)
                 cost_volume_l1 = F.leaky_relu(input=corr(feat_center_l1, feat_align_l1, self.md), negative_slope=0.1, inplace=False)
-                cost_feat_l1 = torch.cat([ cost_volume_l1, feat_center_l1, u_offset2, u_cost_feat_l2 ], 1)
-                cost_feat_l1 = torch.cat([ self.conv1_dec_a(cost_feat_l1), cost_feat_l1 ], 1)
+                cost_feat_l1 = self.conv1_dec_a(torch.cat([ cost_volume_l1, feat_center_l1, u_offset2, u_cost_feat_l2 ], 1))
                 cost_feat_l1 = torch.cat([ self.conv1_dec_b(cost_feat_l1), cost_feat_l1 ], 1)
                 offset1 = self.conv1_dec_c(cost_feat_l1)
 
