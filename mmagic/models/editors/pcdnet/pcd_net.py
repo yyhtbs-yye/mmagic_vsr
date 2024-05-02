@@ -13,7 +13,7 @@ from .mini_pyramid_align import TripleScaleAlignment, DoubleScaleAlignment, Sing
 from .basic_pyramid_align import PyramidDeformableAlignment
 from .edvrpcd_align import PCDAlignment
 from .spynet_align import SPyNetAlignment
-from .pwc_align import PWCNetAlignment
+from .pwcnet_align import PWCNetAlignment
 
 
 @MODELS.register_module()
