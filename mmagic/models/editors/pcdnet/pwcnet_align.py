@@ -49,32 +49,21 @@ class PWCNetAlignment(nn.Module):
 
         act_cfg=dict(type='LeakyReLU', negative_slope=0.1)
 
+        self.offset_conv_a_3 = ConvModule((self.md*2+1)**2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.offset_conv_b_3 = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.offset_conv_c_3 = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
 
-        self.conv2_enc_a = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.conv2_enc_b = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.offset_conv_a_2 = ConvModule((self.md*2+1)**2 + n_channels*4, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.offset_conv_b_2 = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.offset_conv_c_2 = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
 
-        self.conv3_enc_a = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.conv3_enc_b = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.offset_conv_a_1 = ConvModule((self.md*2+1)**2 + n_channels*4, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.offset_conv_b_1 = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.offset_conv_c_1 = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
 
-        self.conv3_dec_a = ConvModule((self.md*2+1)**2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.conv3_dec_b = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.conv3_dec_c = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-
-        self.conv2_dec_a = ConvModule((self.md*2+1)**2 + 4*n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.conv2_dec_b = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.conv2_dec_c = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-
-        self.conv1_dec_a = ConvModule((self.md*2+1)**2 + 4*n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.conv1_dec_b = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.conv1_dec_c = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-
-
-        self.dcn_pack_2 = ModulatedDCNPack(n_channels, n_channels, 3,
-                                           padding=1, deform_groups=deform_groups)
-        self.dcn_pack_1 = ModulatedDCNPack(n_channels, n_channels, 3,
-                                           padding=1, deform_groups=deform_groups)
-        self.dcn_pack_f = ModulatedDCNPack(n_channels, n_channels, 3,
-                                           padding=1, deform_groups=deform_groups)
+        self.dcn_pack_2 = ModulatedDCNPack(n_channels, n_channels, 3, padding=1, deform_groups=deform_groups)
+        self.dcn_pack_1 = ModulatedDCNPack(n_channels, n_channels, 3, padding=1, deform_groups=deform_groups)
+        self.dcn_pack_f = ModulatedDCNPack(n_channels, n_channels, 3, padding=1, deform_groups=deform_groups)
         
         self.refiner = nn.Sequential(
             ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg),
@@ -87,14 +76,18 @@ class PWCNetAlignment(nn.Module):
         # x2: level 2, 1/2 spatial size
         # x3: level 3, 1/4 spatial size
 
+        x1 = x
+        x2 = self.downsample(x1) # Downsample x1 to half its spatial dimensions (1/2 of original)
+        x3 = self.downsample(x2) # Downsample x2 to half its spatial dimensions (1/4 of original)
+
         b, t, c, h, w = x.shape  # Extract shape of x1 to variables: batch size, number of frames, channels, height, width
 
         # Extract center frame features for each level
 
-        # UNet Encoder Part
-        feat_center_l1 = x[:, t // 2, :, :, :]  # Feature at the exact middle frame from level 1
-        feat_center_l2 = self.downsample(self.conv2_enc_b(self.conv2_enc_a(feat_center_l1)))
-        feat_center_l3 = self.downsample(self.conv3_enc_b(self.conv3_enc_a(feat_center_l2)))
+        # Extract center frame features for each level
+        feat_center_l3 = x3[:, t // 2, :, :, :]  # Feature at the exact middle frame from level 3
+        feat_center_l2 = x2[:, t // 2, :, :, :]  # Feature at the exact middle frame from level 2
+        feat_center_l1 = x1[:, t // 2, :, :, :]  # Feature at the exact middle frame from level 1
 
         out_feat = [] # List to store aligned features at level 1
 
@@ -102,42 +95,43 @@ class PWCNetAlignment(nn.Module):
         for i in range(0, t):
             if i == t // 2:
                 # Append the center frame as-is for the middle frame
-                out_feat.append(x[:, i, :, :, :])
+                out_feat.append(feat_center_l1)
             else:
                 
                 # Level 3 Offset Compute ``offset3``
-                feat_neig_l1 = x[:, i, :, :, :].contiguous()
-                
-                feat_neig_l2 = self.conv2_enc_b(self.conv2_enc_a(self.downsample(feat_neig_l1)))
-                feat_neig_l3 = self.conv3_enc_b(self.conv3_enc_a(self.downsample(feat_neig_l2)))
+                feat_neig_l3 = x3[:, i, :, :, :].contiguous()
 
                 # Align L3
                 cost_feat_l3 = F.leaky_relu(input=corr(feat_center_l3, feat_neig_l3, self.md), negative_slope=0.1, inplace=False)
-                cost_feat_l3 = self.conv3_dec_a(cost_feat_l3)
-                cost_feat_l3 = torch.cat([ self.conv3_dec_b(cost_feat_l3), cost_feat_l3 ], 1)
-                offset3 = self.conv3_dec_c(cost_feat_l3)
+                cost_feat_l3 = self.offset_conv_a_3(cost_feat_l3)
+                cost_feat_l3 = torch.cat([ self.offset_conv_b_3(cost_feat_l3), cost_feat_l3 ], 1)
+                offset3 = self.offset_conv_c_3(cost_feat_l3)
                 # Upsample Flow and Feature
                 u_cost_feat_l3 = self.upsample(cost_feat_l3)
                 u_offset3 = self.upsample(offset3) * 2
 
+                feat_neig_l2 = x2[:, i, :, :, :].contiguous()
+
                 # Align L2: Warping l2 -> Cost Volume
                 feat_align_l2 = self.dcn_pack_2(feat_neig_l2, u_offset3)
                 cost_volume_l2 = F.leaky_relu(input=corr(feat_center_l2, feat_align_l2, self.md), negative_slope=0.1, inplace=False)
-                cost_feat_l2 = self.conv2_dec_a(torch.cat([ cost_volume_l2, feat_center_l2, u_offset3, u_cost_feat_l3 ], 1))
-                cost_feat_l2 = torch.cat([ self.conv2_dec_b(cost_feat_l2), cost_feat_l2 ], 1)
-                offset2 = self.conv2_dec_c(cost_feat_l2)
+                cost_feat_l2 = self.offset_conv_a_2(torch.cat([ cost_volume_l2, feat_center_l2, u_offset3, u_cost_feat_l3 ], 1))
+                cost_feat_l2 = torch.cat([ self.offset_conv_b_2(cost_feat_l2), cost_feat_l2 ], 1)
+                offset2 = self.offset_conv_c_2(cost_feat_l2)
                 # Upsample Flow and Feature
                 u_cost_feat_l2 = self.upsample(cost_feat_l2)
                 u_offset2 = self.upsample(offset2) * 2
 
+                feat_neig_l1 = x1[:, i, :, :, :].contiguous()
+
                 # Align L1
                 feat_align_l1 = self.dcn_pack_1(feat_neig_l1, u_offset2)
                 cost_volume_l1 = F.leaky_relu(input=corr(feat_center_l1, feat_align_l1, self.md), negative_slope=0.1, inplace=False)
-                cost_feat_l1 = self.conv1_dec_a(torch.cat([ cost_volume_l1, feat_center_l1, u_offset2, u_cost_feat_l2 ], 1))
-                cost_feat_l1 = torch.cat([ self.conv1_dec_b(cost_feat_l1), cost_feat_l1 ], 1)
-                offset1 = self.conv1_dec_c(cost_feat_l1)
+                cost_feat_l1 = self.offset_conv_a_1(torch.cat([ cost_volume_l1, feat_center_l1, u_offset2, u_cost_feat_l2 ], 1))
+                cost_feat_l1 = torch.cat([ self.offset_conv_b_1(cost_feat_l1), cost_feat_l1 ], 1)
+                offset1 = self.offset_conv_c_1(cost_feat_l1)
 
-                offset = offset1 + self.refiner(cost_feat_l1) * 20
+                offset = offset1 + self.refiner(cost_feat_l1)
 
                 # Final Output
                 feat_align_f = self.dcn_pack_f(feat_neig_l1, offset)

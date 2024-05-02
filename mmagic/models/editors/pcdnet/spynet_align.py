@@ -25,28 +25,20 @@ class SPyNetAlignment(nn.Module):
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', 
                                     align_corners=False)
 
-        self.offset_conv_a_3 = ConvModule(n_channels * 2, n_channels, 3, 
-                                          padding=1, act_cfg=act_cfg)
-        self.offset_conv_b_3 = ConvModule(n_channels, n_channels, 3, 
-                                          padding=1, act_cfg=act_cfg)
-        self.offset_conv_a_2 = ConvModule(n_channels * 3, n_channels, 3, 
-                                          padding=1, act_cfg=act_cfg)
-        self.offset_conv_b_2 = ConvModule(n_channels, n_channels, 3, 
-                                          padding=1, act_cfg=act_cfg)
-        self.offset_conv_c_2 = ConvModule(n_channels, n_channels, 3, 
-                                          padding=1, act_cfg=act_cfg)
-        self.dcn_pack_2 = ModulatedDCNPack(n_channels, n_channels, 3,
-                                           padding=1, deform_groups=deform_groups)
-        self.offset_conv_a_1 = ConvModule(n_channels * 3, n_channels, 3, 
-                                          padding=1, act_cfg=act_cfg)
-        self.offset_conv_b_1 = ConvModule(n_channels, n_channels, 3, 
-                                          padding=1, act_cfg=act_cfg)
-        self.offset_conv_c_1 = ConvModule(n_channels, n_channels, 3, 
-                                          padding=1, act_cfg=act_cfg)
-        self.dcn_pack_1 = ModulatedDCNPack(n_channels, n_channels, 3,
-                                           padding=1, deform_groups=deform_groups)
-        self.dcn_pack_f = ModulatedDCNPack(n_channels, n_channels, 3,
-                                           padding=1, deform_groups=deform_groups)
+        self.offset_conv_a_3 = ConvModule(n_channels * 2, n_channels, 3, padding=1, act_cfg=act_cfg)
+        self.offset_conv_b_3 = ConvModule(n_channels, n_channels, 3, padding=1, act_cfg=act_cfg)
+        
+        self.offset_conv_a_2 = ConvModule(n_channels * 3, n_channels, 3, padding=1, act_cfg=act_cfg)
+        self.offset_conv_b_2 = ConvModule(n_channels, n_channels, 3, padding=1, act_cfg=act_cfg)
+        self.offset_conv_c_2 = ConvModule(n_channels, n_channels, 3, padding=1, act_cfg=act_cfg)
+        
+        self.offset_conv_a_1 = ConvModule(n_channels * 3, n_channels, 3, padding=1, act_cfg=act_cfg)
+        self.offset_conv_b_1 = ConvModule(n_channels, n_channels, 3, padding=1, act_cfg=act_cfg)
+        self.offset_conv_c_1 = ConvModule(n_channels, n_channels, 3, padding=1, act_cfg=act_cfg)
+
+        self.dcn_pack_2 = ModulatedDCNPack(n_channels, n_channels, 3, padding=1, deform_groups=deform_groups)
+        self.dcn_pack_1 = ModulatedDCNPack(n_channels, n_channels, 3, padding=1, deform_groups=deform_groups)
+        self.dcn_pack_f = ModulatedDCNPack(n_channels, n_channels, 3, padding=1, deform_groups=deform_groups)
         
     def forward(self, x):
         # x1: level 1, original spatial size
