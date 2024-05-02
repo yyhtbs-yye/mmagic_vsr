@@ -1,10 +1,11 @@
 
 import os
 
-cuda_id = 2
+cuda_id = 0
 cfg_path = "configs/pcdnet/pcdnet_c64n7_8xb1-600k_reds4.py"
 model_parameters = {
-        'pyramid_depth': "SPyNet"
+        'pyramid_depth': "PWCNet",
+        'align_config': {'n_channels': 128, 'deform_groups': 8}
     }
 
 os.environ['CUDA_VISIBLE_DEVICES'] = str(cuda_id)

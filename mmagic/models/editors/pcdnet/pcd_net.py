@@ -13,6 +13,7 @@ from .mini_pyramid_align import TripleScaleAlignment, DoubleScaleAlignment, Sing
 from .basic_pyramid_align import PyramidDeformableAlignment
 from .edvrpcd_align import PCDAlignment
 from .spynet_align import SPyNetAlignment
+from .pwc_align import PWCNetAlignment
 
 
 @MODELS.register_module()
@@ -57,6 +58,10 @@ class De3QNet(nn.Module):
         elif pyramid_depth == "SPyNet":
             self.temporal_alignment = SPyNetAlignment(n_channels=align_config['n_channels'], 
                                                                  deform_groups=align_config['deform_groups'])
+        elif pyramid_depth == "PWCNet":
+            self.temporal_alignment = PWCNetAlignment(n_channels=align_config['n_channels'], 
+                                                                 deform_groups=align_config['deform_groups'])
+
 
         
         self.temporal_aggregation = nn.Conv2d(in_frames * align_config['n_channels'], 
