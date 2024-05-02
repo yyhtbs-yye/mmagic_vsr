@@ -57,15 +57,15 @@ class PWCNetAlignment(nn.Module):
         self.conv3_enc_b = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
 
         self.conv3_dec_a = ConvModule((self.md*2+1)**2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.conv3_dec_b = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.conv3_dec_b = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
         self.conv3_dec_c = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
 
-        self.conv2_dec_a = ConvModule((self.md*2+1)**2 + 3*n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.conv2_dec_b = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.conv2_dec_a = ConvModule((self.md*2+1)**2 + 4*n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.conv2_dec_b = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
         self.conv2_dec_c = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
 
-        self.conv1_dec_a = ConvModule((self.md*2+1)**2 + 3*n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.conv1_dec_b = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.conv1_dec_a = ConvModule((self.md*2+1)**2 + 4*n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.conv1_dec_b = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
         self.conv1_dec_c = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
 
 
@@ -77,7 +77,7 @@ class PWCNetAlignment(nn.Module):
                                            padding=1, deform_groups=deform_groups)
         
         self.refiner = nn.Sequential(
-            ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg),
+            ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg),
             ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg),
             ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=None),
         )
@@ -118,7 +118,7 @@ class PWCNetAlignment(nn.Module):
                 offset3 = self.conv3_dec_c(cost_feat_l3)
                 # Upsample Flow and Feature
                 u_cost_feat_l3 = self.upsample(cost_feat_l3)
-                u_offset3 = self.upsample(offset3)
+                u_offset3 = self.upsample(offset3) * 2
 
                 # Align L2: Warping l2 -> Cost Volume
                 feat_align_l2 = self.dcn_pack_2(feat_neig_l2, u_offset3)
@@ -128,7 +128,7 @@ class PWCNetAlignment(nn.Module):
                 offset2 = self.conv2_dec_c(cost_feat_l2)
                 # Upsample Flow and Feature
                 u_cost_feat_l2 = self.upsample(cost_feat_l2)
-                u_offset2 = self.upsample(offset2)
+                u_offset2 = self.upsample(offset2) * 2
 
                 # Align L1
                 feat_align_l1 = self.dcn_pack_1(feat_neig_l1, u_offset2)
