@@ -52,7 +52,7 @@ class De3QNet(nn.Module):
         elif pyramid_depth == 4:
             self.temporal_alignment = PyramidDeformableAlignment(n_channels=align_config['n_channels'], 
                                                                  deform_groups=align_config['deform_groups'])
-        elif pyramid_depth == 5:
+        elif pyramid_depth == "PCD": # Originally it is "5"
             self.temporal_alignment = PCDAlignment(n_channels=align_config['n_channels'], 
                                                                  deform_groups=align_config['deform_groups'])
         elif pyramid_depth == "SPyNet":

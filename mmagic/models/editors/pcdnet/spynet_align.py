@@ -7,14 +7,11 @@ from torch.nn.modules.utils import _pair
 
 from einops import rearrange
 
-from mmcv.ops import ModulatedDeformConv2d, modulated_deform_conv2d
-from mmcv.cnn import ConvModule
+from .basic_blocks import ConvModule, ModulatedDCNPack
 
 class SPyNetAlignment(nn.Module):
     def __init__(self, n_channels, deform_groups):
         super(SPyNetAlignment, self).__init__()
-
-        act_cfg=dict(type='LeakyReLU', negative_slope=0.1)
 
         self.offset_channels = deform_groups * 2 * 3 * 3
         self.deform_groups = deform_groups
@@ -22,19 +19,18 @@ class SPyNetAlignment(nn.Module):
 
         self.downsample = nn.AvgPool3d(kernel_size=[1, 2, 2], stride=[1, 2, 2])
 
-        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', 
-                                    align_corners=False)
+        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
 
-        self.offset_conv_a_3 = ConvModule(n_channels * 2, n_channels, 3, padding=1, act_cfg=act_cfg)
-        self.offset_conv_b_3 = ConvModule(n_channels, n_channels, 3, padding=1, act_cfg=act_cfg)
+        self.offset_conv_a_3 = ConvModule(n_channels * 2, n_channels, 3, padding=1)
+        self.offset_conv_b_3 = ConvModule(n_channels, n_channels, 3, padding=1, no_acti=True)
         
-        self.offset_conv_a_2 = ConvModule(n_channels * 3, n_channels, 3, padding=1, act_cfg=act_cfg)
-        self.offset_conv_b_2 = ConvModule(n_channels, n_channels, 3, padding=1, act_cfg=act_cfg)
-        self.offset_conv_c_2 = ConvModule(n_channels, n_channels, 3, padding=1, act_cfg=act_cfg)
+        self.offset_conv_a_2 = ConvModule(n_channels * 3, n_channels, 3, padding=1)
+        self.offset_conv_b_2 = ConvModule(n_channels, n_channels, 3, padding=1)
+        self.offset_conv_c_2 = ConvModule(n_channels, n_channels, 3, padding=1, no_acti=True)
         
-        self.offset_conv_a_1 = ConvModule(n_channels * 3, n_channels, 3, padding=1, act_cfg=act_cfg)
-        self.offset_conv_b_1 = ConvModule(n_channels, n_channels, 3, padding=1, act_cfg=act_cfg)
-        self.offset_conv_c_1 = ConvModule(n_channels, n_channels, 3, padding=1, act_cfg=act_cfg)
+        self.offset_conv_a_1 = ConvModule(n_channels * 3, n_channels, 3, padding=1)
+        self.offset_conv_b_1 = ConvModule(n_channels, n_channels, 3, padding=1)
+        self.offset_conv_c_1 = ConvModule(n_channels, n_channels, 3, padding=1, no_acti=True)
 
         self.dcn_pack_2 = ModulatedDCNPack(n_channels, n_channels, 3, padding=1, deform_groups=deform_groups)
         self.dcn_pack_1 = ModulatedDCNPack(n_channels, n_channels, 3, padding=1, deform_groups=deform_groups)
@@ -69,7 +65,9 @@ class SPyNetAlignment(nn.Module):
                 feat_neig_l3 = x3[:, i, :, :, :].contiguous()
 
                 offset3 = self.offset_conv_a_3(torch.cat([feat_neig_l3, feat_center_l3], dim=1))
+
                 offset3 = self.offset_conv_b_3(offset3)
+
                 u_offset3 = self.upsample(offset3) * 2          # Upsample offset from level 3 to level 2 size
 
                 # Level 2 Offset Compute ``offset2``
@@ -103,70 +101,3 @@ class SPyNetAlignment(nn.Module):
 
         return torch.stack(out_feat, dim=1)                                                 # Stack the aligned features along a new dimension
 
-class ModulatedDCNPack(ModulatedDeformConv2d):
-    """Modulated Deformable Convolutional Pack.
-
-    Different from the official DCN, which generates offsets and masks from
-    the preceding features, this ModulatedDCNPack takes another different
-    feature to generate masks and offsets.
-
-    Args:
-        in_channels (int): Same as nn.Conv2d.
-        out_channels (int): Same as nn.Conv2d.
-        kernel_size (int or tuple[int]): Same as nn.Conv2d.
-        stride (int or tuple[int]): Same as nn.Conv2d.
-        padding (int or tuple[int]): Same as nn.Conv2d.
-        dilation (int or tuple[int]): Same as nn.Conv2d.
-        groups (int): Same as nn.Conv2d.
-        bias (bool or str): If specified as `auto`, it will be decided by the
-            norm_cfg. Bias will be set as True if norm_cfg is None, otherwise
-            False.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.conv_offset = nn.Conv2d(
-            self.in_channels,
-            self.deform_groups * 3 * self.kernel_size[0] * self.kernel_size[1],
-            kernel_size=self.kernel_size,
-            stride=_pair(self.stride),
-            padding=_pair(self.padding),
-            bias=True)
-        self.init_offset()
-
-    def init_offset(self):
-        """Init constant offset."""
-        constant_init(self.conv_offset, val=0, bias=0)
-
-    def forward(self, x, extra_feat):
-        """Forward function."""
-        out = self.conv_offset(extra_feat)
-        o1, o2, mask = torch.chunk(out, 3, dim=1)
-        offset = torch.cat((o1, o2), dim=1)
-        mask = torch.sigmoid(mask)
-        return modulated_deform_conv2d(x, offset, mask, self.weight, self.bias,
-                                       self.stride, self.padding,
-                                       self.dilation, self.groups,
-                                       self.deform_groups)
-
-
-if __name__ == "__main__":
-
-    from torch.profiler import profile
-    import pyprof
-    pyprof.init()
-
-    n_channels = 64  # Number of channels in the input
-    deform_groups = 8  # Number of deformable groups
-    
-    model = MultiscaleAlignment(n_channels, deform_groups).cuda()
-    
-    # Create a test input tensor
-    batch_size = 6
-    temporal_dimension = 7  # Number of frames
-    height, width = 64, 64  # Spatial dimensions
-    input = torch.randn(batch_size, temporal_dimension, n_channels, height, width).cuda()
-    
-    # Run the model
-    output = model(input)

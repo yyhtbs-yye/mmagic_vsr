@@ -7,9 +7,7 @@ from torch.nn.modules.utils import _pair
 
 from einops import rearrange
 
-from mmcv.ops import ModulatedDeformConv2d, modulated_deform_conv2d
-from mmcv.cnn import ConvModule
-
+from .basic_blocks import ConvModule, ModulatedDCNPack
 
 eps = 1e-6
 def corr(f1, f2, md=3):
@@ -49,29 +47,32 @@ class PWCNetAlignment(nn.Module):
 
         act_cfg=dict(type='LeakyReLU', negative_slope=0.1)
 
-        self.offset_conv_a_3 = ConvModule((self.md*2+1)**2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.offset_conv_b_3 = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.offset_conv_c_3 = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.offset_conv_a_3 = ConvModule((self.md*2+1)**2, n_channels, 3, padding=1, stride=1)
+        self.offset_conv_b_3 = ConvModule(n_channels, n_channels, 3, padding=1, stride=1)
+        self.offset_conv_c_3 = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, no_acti=True)
 
-        self.offset_conv_a_2 = ConvModule((self.md*2+1)**2 + n_channels*4, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.offset_conv_b_2 = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.offset_conv_c_2 = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.offset_conv_a_2 = ConvModule((self.md*2+1)**2 + n_channels*4, n_channels, 3, padding=1, stride=1)
+        self.offset_conv_b_2 = ConvModule(n_channels, n_channels, 3, padding=1, stride=1)
+        self.offset_conv_c_2 = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, no_acti=True)
 
-        self.offset_conv_a_1 = ConvModule((self.md*2+1)**2 + n_channels*4, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.offset_conv_b_1 = ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
-        self.offset_conv_c_1 = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg)
+        self.offset_conv_a_1 = ConvModule((self.md*2+1)**2 + n_channels*4, n_channels, 3, padding=1, stride=1)
+        self.offset_conv_b_1 = ConvModule(n_channels, n_channels, 3, padding=1, stride=1)
+        self.offset_conv_c_1 = ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, no_acti=True)
 
         self.dcn_pack_2 = ModulatedDCNPack(n_channels, n_channels, 3, padding=1, deform_groups=deform_groups)
         self.dcn_pack_1 = ModulatedDCNPack(n_channels, n_channels, 3, padding=1, deform_groups=deform_groups)
         self.dcn_pack_f = ModulatedDCNPack(n_channels, n_channels, 3, padding=1, deform_groups=deform_groups)
         
         self.refiner = nn.Sequential(
-            ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg),
-            ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=act_cfg),
-            ConvModule(n_channels, n_channels, 3, padding=1, stride=1, act_cfg=None),
+            ConvModule(n_channels*2, n_channels, 3, padding=1, stride=1),
+            ConvModule(n_channels, n_channels, 3, padding=1, stride=1),
+            ConvModule(n_channels, n_channels, 3, padding=1, stride=1, no_acti=True),
         )
         
     def forward(self, x):
+
+        b, t, c, h, w = x.shape  # Extract shape of x1 to variables: batch size, number of frames, channels, height, width
+
         # x1: level 1, original spatial size
         # x2: level 2, 1/2 spatial size
         # x3: level 3, 1/4 spatial size
@@ -80,9 +81,6 @@ class PWCNetAlignment(nn.Module):
         x2 = self.downsample(x1) # Downsample x1 to half its spatial dimensions (1/2 of original)
         x3 = self.downsample(x2) # Downsample x2 to half its spatial dimensions (1/4 of original)
 
-        b, t, c, h, w = x.shape  # Extract shape of x1 to variables: batch size, number of frames, channels, height, width
-
-        # Extract center frame features for each level
 
         # Extract center frame features for each level
         feat_center_l3 = x3[:, t // 2, :, :, :]  # Feature at the exact middle frame from level 3
@@ -139,71 +137,3 @@ class PWCNetAlignment(nn.Module):
                 out_feat.append(feat_align_f)
 
         return torch.stack(out_feat, dim=1) 
-
-class ModulatedDCNPack(ModulatedDeformConv2d):
-    """Modulated Deformable Convolutional Pack.
-
-    Different from the official DCN, which generates offsets and masks from
-    the preceding features, this ModulatedDCNPack takes another different
-    feature to generate masks and offsets.
-
-    Args:
-        in_channels (int): Same as nn.Conv2d.
-        out_channels (int): Same as nn.Conv2d.
-        kernel_size (int or tuple[int]): Same as nn.Conv2d.
-        stride (int or tuple[int]): Same as nn.Conv2d.
-        padding (int or tuple[int]): Same as nn.Conv2d.
-        dilation (int or tuple[int]): Same as nn.Conv2d.
-        groups (int): Same as nn.Conv2d.
-        bias (bool or str): If specified as `auto`, it will be decided by the
-            norm_cfg. Bias will be set as True if norm_cfg is None, otherwise
-            False.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.conv_offset = nn.Conv2d(
-            self.in_channels,
-            self.deform_groups * 3 * self.kernel_size[0] * self.kernel_size[1],
-            kernel_size=self.kernel_size,
-            stride=_pair(self.stride),
-            padding=_pair(self.padding),
-            bias=True)
-        self.init_offset()
-
-    def init_offset(self):
-        """Init constant offset."""
-        constant_init(self.conv_offset, val=0, bias=0)
-
-    def forward(self, x, extra_feat):
-        """Forward function."""
-        out = self.conv_offset(extra_feat)
-        o1, o2, mask = torch.chunk(out, 3, dim=1)
-        offset = torch.cat((o1, o2), dim=1)
-        mask = torch.sigmoid(mask)
-        return modulated_deform_conv2d(x, offset, mask, self.weight, self.bias,
-                                       self.stride, self.padding,
-                                       self.dilation, self.groups,
-                                       self.deform_groups)
-
-
-if __name__ == "__main__":
-
-    from torch.profiler import profile
-    import pyprof
-    pyprof.init()
-
-    n_channels = 64  # Number of channels in the input
-    deform_groups = 8  # Number of deformable groups
-    
-    model = MultiscaleAlignment(n_channels, deform_groups).cuda()
-    
-    # Create a test input tensor
-    batch_size = 6
-    temporal_dimension = 7  # Number of frames
-    height, width = 64, 64  # Spatial dimensions
-    input = torch.randn(batch_size, temporal_dimension, n_channels, height, width).cuda()
-    
-    # Run the model
-    output = model(input)

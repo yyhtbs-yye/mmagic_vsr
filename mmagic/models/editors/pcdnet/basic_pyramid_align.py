@@ -119,24 +119,3 @@ class PyramidDeformableAlignment(nn.Module):
                 aligned_feats_l1.append(self.post_deform(aligned_feat_l1))                                            # Align the feature using the final offset
 
         return torch.stack(aligned_feats_l1, dim=1)                                                 # Stack the aligned features along a new dimension
-
-
-if __name__ == "__main__":
-
-    from torch.profiler import profile
-    import pyprof
-    pyprof.init()
-
-    n_channels = 64  # Number of channels in the input
-    deform_groups = 8  # Number of deformable groups
-    
-    model = MultiscaleAlignment(n_channels, deform_groups).cuda()
-    
-    # Create a test input tensor
-    batch_size = 6
-    temporal_dimension = 7  # Number of frames
-    height, width = 64, 64  # Spatial dimensions
-    input = torch.randn(batch_size, temporal_dimension, n_channels, height, width).cuda()
-    
-    # Run the model
-    output = model(input)
