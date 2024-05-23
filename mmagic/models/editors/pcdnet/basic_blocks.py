@@ -17,15 +17,15 @@ class LeakyHardTanh(nn.Module):
                            torch.where(x < -1, self.negative_slope * (x + 1) - 1, x))
 
 class ConvModule(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=1, stride=1, padding=0, negative_slope=0.01, no_acti=False):
+    def __init__(self, in_channels, out_channels, kernel_size=1, stride=1, padding=0, negative_slope=0.01, act_cfg=True):
         super(ConvModule, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
         self.activation = LeakyHardTanh(negative_slope)
-        self.no_acti = no_acti
+        self.act_cfg = act_cfg
 
     def forward(self, x):
         x = self.conv(x)
-        if self.no_acti: 
+        if self.act_cfg is None: 
             return x
         x = self.activation(x)
         return x

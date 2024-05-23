@@ -7,6 +7,7 @@ import os, sys
 import time
 from tabulate import tabulate
 import hashlib
+import os.path as osp
 
 wait_cfgs = {}
 set_start_method('spawn', force=True)
@@ -33,7 +34,7 @@ def get_idle_gpu():
         print(f"Failed to read GPU stats: {e}")
         return None  # Default to GPU 0 if unable to fetch or parse
     
-def train_in_process(cfg_path, model_parameters, cuda_id):
+def train_in_process(cfg_path, model_parameters, work_dir, cuda_id):
 
     # Redirect stdout and stderr to /dev/null or a file
     sys.stdout = open(os.devnull, 'w')
@@ -47,6 +48,8 @@ def train_in_process(cfg_path, model_parameters, cuda_id):
     cfg = Config.fromfile(cfg_path)
 
     cfg.model['generator'].update(**model_parameters)
+    cfg.work_dir = osp.join('./work_dirs',
+                            osp.splitext(osp.basename(work_dir))[0])
 
     runner = Runner.from_cfg(cfg)
     runner.train()
@@ -55,13 +58,13 @@ def train_in_process(cfg_path, model_parameters, cuda_id):
     sys.stdout = sys.__stdout__
     sys.stderr = sys.__stderr__
 
-def train_a_model(cfg_path, model_parameters={}):
+def train_a_model(cfg_path, model_parameters={}, work_dir="example"):
 
     cuda_id = get_idle_gpu()
 
     if cuda_id:
         # Create a new process targeting the train_in_process function
-        train_process = Process(target=train_in_process, args=(cfg_path, model_parameters, cuda_id))
+        train_process = Process(target=train_in_process, args=(cfg_path, model_parameters, work_dir, cuda_id))
     
         # Start the new process
         train_process.start()
@@ -79,9 +82,10 @@ def receive_config():
     data = request.json
     cfg_path = data['cfg_path']
     model_parameters = data.get('model_parameters', {})
+    work_dir = data.get('work_dir', "")
     
     if cfg_path:
-        wait_cfgs[cnt] = (cfg_path, model_parameters)
+        wait_cfgs[cnt] = (cfg_path, model_parameters, work_dir)
         cnt += 1
         return jsonify({'message': 'Configuration added successfully'}), 200
     else:
@@ -153,12 +157,12 @@ def train_from_queue():
     while True:
         if len(wait_cfgs) > 0:
             first_key = list(wait_cfgs.keys())[0]
-            run_cfg, model_parameters = wait_cfgs.pop(first_key)
-            train_process, cuda_id = train_a_model(run_cfg, model_parameters)
+            run_cfg, model_parameters, work_dir = wait_cfgs.pop(first_key)
+            train_process, cuda_id = train_a_model(run_cfg, model_parameters, work_dir)
             
             if not train_process:
                 print(f"No Idle GPU for task {run_cfg}")
-                wait_cfgs[first_key] = (run_cfg, model_parameters)  # Reinsert the cfg
+                wait_cfgs[first_key] = (run_cfg, model_parameters, work_dir)  # Reinsert the cfg
             else:
                 train_pid = train_process.pid
                 running_trainers[train_pid] = [run_cfg, model_parameters, cuda_id, train_pid, train_process]
@@ -182,25 +186,3 @@ if __name__ == '__main__':
     training_thread = Thread(target=train_from_queue)
     training_thread.start()
     app.run(host='0.0.0.0', port=5000)
-
-
-    # wait_cfgs = ["/workspace/mmagic/configs/d2dunet/d2dunet_c64n7_8xb1-600k_reds4.py"]
-
-    # pid_queue = []
-
-    # while 1:
-
-    #     # Pick the first one
-    #     run_cfg = wait_cfgs[0]
-
-    #     if isinstance(run_cfg, str):
-    #         pid = train_a_model(run_cfg)
-    #     else: 
-    #         pid = train_a_model(*run_cfg)
-
-    #     if not pid:
-    #         print(f"No Idle GPU for task {run_cfg}")
-    #         time.sleep(5)
-    #     else:
-    #         pid_queue.append(pid)
-    #         wait_cfgs.pop(0)
